@@ -103,3 +103,58 @@ Yippee Skippy! Now we get to the fun part - and one of the reasons I had to spen
 	}
 	//Let's update these in bulk, in a transaction shall we?
 	table.Save(drinks);
+	
+Named Argument Query Syntax
+-------------------
+I recently added the ability to run more friendly queries using Named Arguments and C#4's Method-on-the-fly syntax. Originally this was trying to be like ActiveRecord, but I figured "C# is NOT Ruby, and Named Arguments can be a lot more clear". In addition, Mark Rendle's Simple.Data is already doing this so ... why duplicate things?
+
+If your needs are more complicated - I would suggest just passing in your own SQL with Query().
+
+	//important - must be dynamic
+	dynamic table = new Products();
+
+	var drinks = table.FindBy(CategoryID:8);
+	//what we get back here is an IEnumerable < ExpandoObject > - we can go to town
+	foreach(var item in drinks){
+		Console.WriteLine(item.ProductName);
+	}
+	//returns the first item in the DB for category 8
+	var first = table.First(CategoryID:8);
+	
+	//you dig it - the last as sorted by PK
+	var last = table.Last(CategoryID:8);
+	
+	//you can order by whatever you like
+	var firstButReallyLast = table.First(CategoryID:8,OrderBy:"PK DESC");
+	
+	//only want one column?
+	var price = table.First(CategoryID:8,Columns:"UnitPrice").UnitPrice;
+	
+	//Multiple Criteria?
+	var items = table.Find(CategoryID:5, UnitPrice:100, OrderBy:"UnitPrice DESC");
+	
+Metadata
+--------
+If you find that you need to know information about your table - to generate some lovely things like ... whatever - just ask for the Schema property. This will query INFORMATION_SCHEMA for you, and you can take a look at DATA_TYPE, DEFAULT_VALUE, etc for whatever system you're running on.
+
+In addition, if you want to generate an empty instance of a column - you can now ask for a "Prototype()" - which will return all the columns in your table with the defaults set for you (getdate(), raw values, newid(), etc).
+
+Factory Constructor
+-------------------
+One thing that can be useful is to use Massive to just run a quick query. You can do that now by using "Open()" which is a static builder on DynamicModel:
+	var db = Massive.DynamicModel.Open("myConnectionStringName");
+
+You can execute whatever you like at that point.
+
+Asynchronous Execution
+----------------------
+Thanks to Damien Edwards, we now have the ability to query asynchronously using the Task Parallel Library:
+	
+	var p = new Products();
+	p.AllAsync(result => {
+		foreach (var item in result) {
+			Console.WriteLine(item.ProductName);
+		}
+	});
+	
+This will toss the execution (and what you need to do with it) into an asynchronous call, which is nice for scaling.
