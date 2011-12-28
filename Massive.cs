@@ -424,10 +424,14 @@ namespace Massive {
             result = CreateCommand(stub, null);
             int counter = 0;
             foreach (var item in settings) {
-                sbKeys.AppendFormat("{0},", item.Key);
-                sbVals.AppendFormat("@{0},", counter.ToString());
-                result.AddParam(item.Value);
-                counter++;
+                if ( !item.Key.Equals(PrimaryKeyField, StringComparison.OrdinalIgnoreCase) )
+                {
+
+                    sbKeys.AppendFormat("[{0}],", item.Key);
+                    sbVals.AppendFormat("@{0},", counter.ToString());
+                    result.AddParam(item.Value);
+                    counter++;
+                }
             }
             if (counter > 0) {
                 var keys = sbKeys.ToString().Substring(0, sbKeys.Length - 1);
@@ -451,7 +455,7 @@ namespace Massive {
                 var val = item.Value;
                 if (!item.Key.Equals(PrimaryKeyField, StringComparison.OrdinalIgnoreCase) && item.Value != null) {
                     result.AddParam(val);
-                    sbKeys.AppendFormat("{0} = @{1}, \r\n", item.Key, counter.ToString());
+                    sbKeys.AppendFormat("[{0}] = @{1}, \r\n", item.Key, counter.ToString());
                     counter++;
                 }
             }
@@ -470,7 +474,7 @@ namespace Massive {
         public virtual DbCommand CreateDeleteCommand(string where = "", object key = null, params object[] args) {
             var sql = string.Format("DELETE FROM {0} ", TableName);
             if (key != null) {
-                sql += string.Format("WHERE {0}=@0", PrimaryKeyField);
+                sql += string.Format("WHERE [{0}]=@0", PrimaryKeyField);
                 args = new object[] { key };
             } else if (!string.IsNullOrEmpty(where)) {
                 sql += where.Trim().StartsWith("where", StringComparison.OrdinalIgnoreCase) ? where : "WHERE " + where;
