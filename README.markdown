@@ -1,5 +1,5 @@
-Massive is a Single File Database Lover. Move over Bacon - Taste is got a new friend in .NET Land
-=================================================================================================
+Massive is a Single File Database Lover. It's Better Than Chocolate. No Really.
+===============================================================================
 
 
 I'm sharing this with the world because we need another way to access data - don't you think? Truthfully - I wanted to see if I could flex the C# 4 stuff and
@@ -24,15 +24,17 @@ Let's say we have a table named "Products". You create a class like this:
     
 	public class Products:DynamicModel {
         	//you don't have to specify the connection - Massive will use the first one it finds in your config
-		public Products():base("northwind") {
-            		PrimaryKeyField = "ProductID";
-        	}
+		public Products():base("northwind", "products","productid") {}
 
-    	}
+    }
 
 You could also just instantiate it inline, as needed:
+
 	var tbl = new DynamicModel("northwind", tableName:"Products", primaryKeyField:"ProductID");
 
+Or ignore the object hierarchy altogether:
+	
+	Massive.DB.Current.Query(...);
 
 Now you can query thus:
 
@@ -42,6 +44,13 @@ Now you can query thus:
 	//just grab from category 4. This uses named parameters
 	var productsFour = table.All(columns: "ProductName as Name", where: "WHERE categoryID=@0",args: 4);
 
+That works, but Massive is "dynamic" - which means that it can figure a lot of things out on the fly. That query above can be rewritten like this:
+
+	dynamic table = new Products(); //"dynamic" is important here - don't use "var"!
+	var productsFour = table.Find(CategoryID:4,columns:"ProductName");
+	
+The "Find" method doesn't exist, but since Massive is dynamic it will try to infer what you mean by using DynamicObject's TryInvokeMember. See the source for more details. There's more on the dynamic query stuff down below.
+	
 You can also run ad-hoc queries as needed:
 
 	var result = tbl.Query("SELECT * FROM Categories");
@@ -133,6 +142,16 @@ If your needs are more complicated - I would suggest just passing in your own SQ
 	//Multiple Criteria?
 	var items = table.Find(CategoryID:5, UnitPrice:100, OrderBy:"UnitPrice DESC");
 	
+Aggregates with Named Arguments
+-------------------------------
+You can do the same thing as above for aggregates:
+
+	var sum = table.Sum(columns:Price, CategoryID:5);
+	var avg = table.Avg(columns:Price, CategoryID:3);
+	var min = table.Min(columns:ID);
+	var max = table.Max(columns:CreatedOn);
+	var count = table.Count();
+	
 Metadata
 --------
 If you find that you need to know information about your table - to generate some lovely things like ... whatever - just ask for the Schema property. This will query INFORMATION_SCHEMA for you, and you can take a look at DATA_TYPE, DEFAULT_VALUE, etc for whatever system you're running on.
@@ -146,15 +165,42 @@ One thing that can be useful is to use Massive to just run a quick query. You ca
 
 You can execute whatever you like at that point.
 
-Asynchronous Execution
-----------------------
-Thanks to Damien Edwards, we now have the ability to query asynchronously using the Task Parallel Library:
-	
-	var p = new Products();
-	p.AllAsync(result => {
-		foreach (var item in result) {
-			Console.WriteLine(item.ProductName);
-		}
-	});
-	
-This will toss the execution (and what you need to do with it) into an asynchronous call, which is nice for scaling.
+Validations
+-----------
+One thing that's always needed when working with data is the ability to stop execution if something isn't right. Massive now has Validations, which are built with the Rails approach in mind:
+
+    public class Productions:DynamicModel {
+        public Productions():base("MyConnectionString","Productions","ID") {}
+        public override void Validate(dynamic item) {
+			ValidatesPresenceOf("Title");
+            ValidatesNumericalityOf(item.Price);
+            ValidateIsCurrency(item.Price);
+			if (item.Price <= 0)
+                Errors.Add("Price can't be negative");
+        }
+	}
+
+The idea here is that Validate() is called prior to Insert/Update. If it fails, an Error collection is populated and an InvalidOperationException is thrown. That simple. With each of the validations above, a message can be passed in.
+
+CallBacks
+---------
+Need something to happen After Update/Insert/Delete? Need to halt BeforeSave? Massive has callbacks to let you do just that:
+
+    public class Customers:DynamicModel {
+        public Customers():base("MyConnectionString","Customers","ID") {}
+        
+		//Add the person to Highrise CRM when they're added to the system...
+		public override void Inserted(dynamic item) {
+            //send them to Highrise
+            var svc = new HighRiseApi();
+            svc.AddPerson(...);
+        }
+	}
+The callbacks you can use are:
+*Inserted
+*Updated
+*Deleted
+*BeforeDelete
+*BeforeSave
+
+
